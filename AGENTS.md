@@ -70,7 +70,9 @@
 
 ## Поточний стан
 Крок 2 — проєкт створено з шаблону iOS App (SwiftUI) у `Numismat/`, Bundle ID `com.example.Numismat`.
-Hello World запущено в симуляторі. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
+Hello World запущено в симуляторі. Додано bottom tabs (Головна / Список / Інфо) через `TabView` + `Tab`
+у `ContentView.swift`, кожен таб — порожній екран з назвою (`HomeView`, `ListView`, `InfoView`),
+так само як в Expo-проєкті. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -79,3 +81,6 @@ Hello World запущено в симуляторі. Далі — розбір 
   мультиплатформну чернетку без налаштувань — не використовувати).
 - Іконка додатку: ті самі монетки, що й на Android, PNG 1024×1024 у `Assets.xcassets/AppIcon.appiconset`
   (варіанти light, dark, tinted).
+- Bottom tabs: `TabView { Tab("Головна", systemImage: "house.fill") { HomeView() } ... }` ≈ Expo `<Tabs>` +
+ `<Tabs.Screen>`; іконки — SF Symbols (вбудовані, аналог Ionicons). Проєкт використовує synchronized
+ groups — нові `.swift` файли в `Numismat/Numismat/` Xcode підхоплює сам.
