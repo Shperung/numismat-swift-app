@@ -73,6 +73,9 @@
 Hello World запущено в симуляторі. Додано bottom tabs (Головна / Список / Інфо) через `TabView` + `Tab`
 у `ContentView.swift`, кожен таб — порожній екран з назвою (`HomeView`, `ListView`, `InfoView`),
 так само як в Expo-проєкті. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
+Підключено Firestore (як в Expo / Kotlin): колекція `coins` читається через `CoinsStore` і виводиться
+на Головній як JSON. Працює в симуляторі (з `GoogleService-Info.plist` iOS-застосунку з Firebase Console).
+У змінених файлах — докладні коментарі з аналогіями Expo. Далі — тип `Coin` за реальними даними.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -84,3 +87,9 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 - Bottom tabs: `TabView { Tab("Головна", systemImage: "house.fill") { HomeView() } ... }` ≈ Expo `<Tabs>` +
  `<Tabs.Screen>`; іконки — SF Symbols (вбудовані, аналог Ionicons). Проєкт використовує synchronized
  groups — нові `.swift` файли в `Numismat/Numismat/` Xcode підхоплює сам.
+- Firebase Firestore (спільний проєкт `tetiana-redko`): SPM-пакет `firebase-ios-sdk` (продукт `FirebaseFirestore`,
+ ≈ `npm i firebase`). iOS SDK, на відміну від Android, не приймає web App ID (падає, якщо App ID не `1:…:ios:…`),
+ тому конфіг — стандартний `GoogleService-Info.plist` у `Numismat/Numismat/` (у `.gitignore`, ≈ `.env.local`).
+ `NumismatApp.init` → `FirebaseApp.configure()`; `FetchCollection.swift` (`async throws`, `try await getDocuments()`);
+ `CoinsStore.swift` (`@Observable`, аналог Context-провайдера) передається через `.environment(...)` + `.task { load() }`;
+ `HomeView` — `@Environment(CoinsStore.self)`, JSON через `JSONSerialization`.

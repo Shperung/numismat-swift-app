@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7E9083A130658F24002437C0 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 7E9083A030658F24002437C0 /* FirebaseFirestore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		7E90833D30658F24002437C0 /* Numismat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Numismat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -22,6 +26,7 @@
 		7E90833A30658F24002437C0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				7E9083A130658F24002437C0 /* FirebaseFirestore in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -60,6 +65,9 @@
 				7E90833F30658F24002437C0 /* Numismat */,
 			);
 			name = Numismat;
+			packageProductDependencies = (
+				7E9083A030658F24002437C0 /* FirebaseFirestore */,
+			);
 			productName = Numismat;
 			productReference = 7E90833D30658F24002437C0 /* Numismat.app */;
 			productType = "com.apple.product-type.application";
@@ -88,6 +96,9 @@
 			);
 			mainGroup = 7E90833430658F24002437C0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7E90839F30658F24002437C0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7E90833E30658F24002437C0 /* Products */;
 			projectDirPath = "";
@@ -316,6 +327,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7E90839F30658F24002437C0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.19.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7E9083A030658F24002437C0 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E90839F30658F24002437C0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7E90833530658F24002437C0 /* Project object */;
 	validationLevel = 1;
