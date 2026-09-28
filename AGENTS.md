@@ -75,7 +75,8 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 так само як в Expo-проєкті. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
 Підключено Firestore (як в Expo / Kotlin): колекція `coins` читається через `CoinsStore` і виводиться
 на Головній як JSON. Працює в симуляторі (з `GoogleService-Info.plist` iOS-застосунку з Firebase Console).
-У змінених файлах — докладні коментарі з аналогіями Expo. Далі — тип `Coin` за реальними даними.
+У змінених файлах — докладні коментарі з аналогіями Expo. Колекція `countries` так само читається
+через `CountriesStore` і виводиться на табі Список як JSON. Далі — тип `Coin` за реальними даними.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -93,3 +94,6 @@ Hello World запущено в симуляторі. Додано bottom tabs (
  `NumismatApp.init` → `FirebaseApp.configure()`; `FetchCollection.swift` (`async throws`, `try await getDocuments()`);
  `CoinsStore.swift` (`@Observable`, аналог Context-провайдера) передається через `.environment(...)` + `.task { load() }`;
  `HomeView` — `@Environment(CoinsStore.self)`, JSON через `JSONSerialization`.
+- Countries: `CountriesStore.swift` (копія `CoinsStore` для колекції `countries`, ≈ `CountriesViewModel` у Kotlin;
+ в Expo — локальний `useState` + `useEffect` у `list.tsx`), підключено в `NumismatApp` (`.environment` + `.task`),
+ `ListView` — `@Environment(CountriesStore.self)`, JSON як на Головній.
