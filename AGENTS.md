@@ -97,3 +97,6 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 - Countries: `CountriesStore.swift` (копія `CoinsStore` для колекції `countries`, ≈ `CountriesViewModel` у Kotlin;
  в Expo — локальний `useState` + `useEffect` у `list.tsx`), підключено в `NumismatApp` (`.environment` + `.task`),
  `ListView` — `@Environment(CountriesStore.self)`, JSON як на Головній.
+- Структура папок (як в Expo / Kotlin): `Screens/` (≈ `src/app/`), `Stores/` (≈ `src/providers/`), `Lib/` (≈ `src/lib/`);
+ у корені — `NumismatApp.swift`, `ContentView.swift`, `GoogleService-Info.plist`, `Assets.xcassets`.
+ Завдяки synchronized groups `project.pbxproj` правити не треба; імпорти не змінюються (увесь таргет — один модуль).
