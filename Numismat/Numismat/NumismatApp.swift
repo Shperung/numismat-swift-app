@@ -35,6 +35,7 @@ struct NumismatApp: App {
     // при кожному перерахунку `body` (як `useState` зберігає значення між рендерами).
     // `private` — видно лише в цьому struct (≈ змінна, не експортована з модуля).
     @State private var coinsStore = CoinsStore()
+    @State private var countriesStore = CountriesStore()
 
     // `body` — що показати. `WindowGroup` — вікно додатку (≈ корінь, який рендерить Expo Router).
     var body: some Scene {
@@ -51,6 +52,8 @@ struct NumismatApp: App {
                 // коли view зникає (в RN для цього треба повертати cleanup / AbortController).
                 // `await` — як у JS: чекаємо на асинхронну функцію.
                 .task { await coinsStore.load() }
+                .environment(countriesStore)
+                .task { await countriesStore.load() }
         }
     }
 }
