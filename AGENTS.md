@@ -75,10 +75,10 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 так само як в Expo-проєкті. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
 Підключено Firestore (як в Expo / Kotlin): колекція `coins` читається через `CoinsStore` і виводиться
 на Головній як JSON. Працює в симуляторі (з `GoogleService-Info.plist` iOS-застосунку з Firebase Console).
-У змінених файлах — докладні коментарі з аналогіями Expo. Колекція `countries` так само читається
-через `CountriesStore` і виводиться на табі Список як JSON. Головна — список карток `CoinCard`
+У змінених файлах — докладні коментарі з аналогіями Expo. Головна — список карток `CoinCard`
 (`LazyVStack`), тап відкриває екран монети `CoinView` (`NavigationStack` усередині таба).
-Далі — фільтр монет за країною.
+«Список» — фільтр за країною (як в Expo): `Picker` країн (з `CountriesStore`), при старті випадкова країна,
+монети запитуються з Firestore через `whereField`.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -108,3 +108,10 @@ Hello World запущено в симуляторі. Додано bottom tabs (
  `Screens/CoinView.swift`. Навігація: `NavigationStack` у `HomeView` + `NavigationLink(value: coin)` +
  `.navigationDestination(for: Coin.self)` (≈ `<Link href>` + `<Stack.Screen name="coin/[id]">`); передається вся
  монета, а не `id`. На відміну від Expo (Stack над табами) стек усередині таба — tab bar лишається (iOS-стиль).
+- Фільтр за країною: `countries/{id}` = `{ name_ua, name_en, flag }`, `coin.country` = id країни.
+ `Models/Country.swift` (`name_ua` → `nameUa`), `CountriesStore.countries: [Country]`,
+ `Lib/FetchCoinsByCountry.swift` (`.whereField("country", isEqualTo:)` ≈ `where('country', '==', ...)`).
+ `ListView`: локальні `@State` (`country`, `coins`, `error`), `Picker(selection: $country)` зі стилем `.menu`
+ (≈ `@expo/ui` Picker, який на iOS і є SwiftUI `Picker`), `.onChange(of: store.countries, initial: true)` →
+ випадкова країна, `.task(id: country)` ≈ `useEffect(..., [country])` з автоскасуванням; перевірка
+ `Task.isCancelled` після `await` ≈ прапорець `active` проти гонки відповідей.
