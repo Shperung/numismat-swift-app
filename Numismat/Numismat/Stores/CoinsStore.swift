@@ -24,7 +24,8 @@ class CoinsStore {
     // ≈ type CoinsState = { coins: Coin[]; loading: boolean; error: string | null }
     //   + початкове значення `{ coins: [], loading: true, error: null }`.
     // `var` — змінна властивість (≈ `let` у JS); тип виводиться з початкового значення.
-    var coins: [[String: Any]] = []
+    // `[Coin]` ≈ `Coin[]`. Раніше тут був "сирий" `[[String: Any]]` для виводу JSON.
+    var coins: [Coin] = []
     var loading = true
     // `String?` — optional ≈ `string | null`; без значення за замовчуванням дорівнює `nil` (≈ `null`).
     var error: String?
@@ -36,7 +37,8 @@ class CoinsStore {
     // Замість `.then/.catch` — `do { try await ... } catch { ... }` (≈ try/catch з await у JS).
     func load() async {
         do {
-            coins = try await fetchCollection("coins")
+            // ≈ `coins as Coin[]`: кожен словник перетворюємо на `Coin` через `Coin(_ data:)`.
+            coins = try await fetchCollection("coins").map { Coin($0) }
         } catch {
             // У `catch` без імені помилка доступна як `error` (≈ `catch (error)`).
             // Вона "затіняє" властивість з тим самим ім'ям, тому до властивості — через `self.`

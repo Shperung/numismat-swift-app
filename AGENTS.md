@@ -76,7 +76,9 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 Підключено Firestore (як в Expo / Kotlin): колекція `coins` читається через `CoinsStore` і виводиться
 на Головній як JSON. Працює в симуляторі (з `GoogleService-Info.plist` iOS-застосунку з Firebase Console).
 У змінених файлах — докладні коментарі з аналогіями Expo. Колекція `countries` так само читається
-через `CountriesStore` і виводиться на табі Список як JSON. Далі — тип `Coin` за реальними даними.
+через `CountriesStore` і виводиться на табі Список як JSON. Головна — список карток `CoinCard`
+(`LazyVStack`), тап відкриває екран монети `CoinView` (`NavigationStack` усередині таба).
+Далі — фільтр монет за країною.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -100,3 +102,9 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 - Структура папок (як в Expo / Kotlin): `Screens/` (≈ `src/app/`), `Stores/` (≈ `src/providers/`), `Lib/` (≈ `src/lib/`);
  у корені — `NumismatApp.swift`, `ContentView.swift`, `GoogleService-Info.plist`, `Assets.xcassets`.
  Завдяки synchronized groups `project.pbxproj` правити не треба; імпорти не змінюються (увесь таргет — один модуль).
+- Картки й екран монети: `Models/Coin.swift` (`struct Coin: Identifiable, Hashable`, init зі словника Firestore
+ у `extension`, щоб лишився memberwise init; `value` — `String`, бо у Firestore рядок), `CoinsStore.coins: [Coin]`.
+ `Components/CoinPhoto.swift` (`AsyncImage` ≈ `expo-image`, без дискового кешу), `Components/CoinCard.swift`,
+ `Screens/CoinView.swift`. Навігація: `NavigationStack` у `HomeView` + `NavigationLink(value: coin)` +
+ `.navigationDestination(for: Coin.self)` (≈ `<Link href>` + `<Stack.Screen name="coin/[id]">`); передається вся
+ монета, а не `id`. На відміну від Expo (Stack над табами) стек усередині таба — tab bar лишається (iOS-стиль).

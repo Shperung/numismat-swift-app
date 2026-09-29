@@ -2,16 +2,20 @@
 //  HomeView.swift
 //  Numismat
 //
-//  Аналог src/app/index.tsx в Expo:
+//  Аналог src/app/(tabs)/index.tsx в Expo:
 //
 //    export default function HomeScreen() {
 //      const { coins, loading, error } = useCoins();
+//      if (loading || error) {
+//        return <Text style={{ padding: 16 }}>{error ?? 'Завантаження...'}</Text>;
+//      }
 //      return (
-//        <ScrollView contentContainerStyle={{ padding: 16 }}>
-//          <Text selectable style={{ fontFamily: 'Menlo', fontSize: 12 }}>
-//            {loading ? 'Завантаження...' : error ?? JSON.stringify(coins, null, 2)}
-//          </Text>
-//        </ScrollView>
+//        <FlatList
+//          data={coins}
+//          keyExtractor={(coin) => coin.id}
+//          renderItem={({ item }) => <CoinCard coin={item} />}
+//          contentContainerStyle={{ padding: 16, gap: 12 }}
+//        />
 //      );
 //    }
 //
@@ -23,45 +27,63 @@ import SwiftUI
 // `struct HomeView: View` ≈ `export default function HomeScreen()`.
 // Імпорт не потрібен: усі файли одного таргету бачать одне одного (як один модуль).
 struct HomeView: View {
-    // ≈ `const store = useCoins()` (тобто `useContext(CoinsContext)`).
+    // ≈ `const { coins, loading, error } = useCoins();`
     // `@Environment(CoinsStore.self)` бере стор, який поклали вище через `.environment(coinsStore)`
-    // у NumismatApp.swift. `CoinsStore.self` — сам тип як значення (≈ передати `CoinsContext`).
-    // Якщо провайдера вище немає — падіння (в React був би дефолт з `createContext(...)`).
+    // у NumismatApp.swift. Якщо провайдера вище немає — падіння (в React був би дефолт з `createContext(...)`).
     @Environment(CoinsStore.self) private var store
 
-    // `body` ≈ `return (...)` у компоненті — опис того, що рендерити.
-    // Перераховується, коли змінюються `store.loading` / `store.error` / `store.coins`.
     var body: some View {
-        // ≈ `<ScrollView>`. Скрол у SwiftUI не вмикається сам — як і в RN, потрібен ScrollView.
-        ScrollView {
-            // Той самий вираз, що в Expo: `loading ? '...' : error ?? JSON.stringify(...)`.
-            // Тернарник `? :` і `??` у Swift працюють так само, як у TS.
-            Text(store.loading ? "Завантаження..." : store.error ?? json(store.coins))
-                // ≈ style={{ fontFamily: 'Menlo', fontSize: 12 }}; `.monospaced` — системний моноширинний шрифт.
-                .font(.system(size: 12, design: .monospaced))
-                // ≈ проп `selectable` у <Text>.
-                .textSelection(.enabled)
-                // ≈ { width: '100%', alignItems: 'flex-start' }: розтягнути на всю ширину
-                // і притиснути текст вліво (інакше SwiftUI центрує його).
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // ≈ contentContainerStyle={{ padding: 16 }}.
-                .padding(16)
+        // `NavigationStack` ≈ `<Stack>` з src/app/_layout.tsx: дає заголовок зверху і стек екранів.
+        //
+        // Різниця зі структурою Expo: там Stack — корінь, а таби всередині нього, тому екран
+        // монети відкривається ПОВЕРХ табів (tab bar зникає). В iOS прийнято навпаки: свій
+        // NavigationStack усередині кожного таба, тож екран монети відкривається всередині
+        // "Головної", tab bar лишається, а при перемиканні табів стек кожного зберігається.
+        NavigationStack {
+            // `Group` — "невидимий" контейнер (≈ `<>...</>` фрагмент), щоб навісити модифікатори
+            // (`.navigationTitle` нижче) на будь-яку з гілок `if`.
+            Group {
+                // ≈ `if (loading || error) return <Text ...>`. У SwiftUI не можна "рано повернути"
+                // з `body`, тому гілки пишуться через `if / else` прямо в описі UI.
+                if store.loading || store.error != nil {
+                    Text(store.error ?? "Завантаження...")
+                        .padding(16)
+                } else {
+                    // `ScrollView` + `LazyVStack` ≈ `<FlatList>`: "Lazy" — рендерить лише те,
+                    // що видно на екрані (як віртуалізація у FlatList). Звичайний `VStack` створив би все одразу.
+                    // Є ще `List` (≈ FlatList зі стилем iOS-таблиці), але для власних карток простіше так.
+                    ScrollView {
+                        // `spacing: 12` ≈ `gap: 12`.
+                        LazyVStack(spacing: 12) {
+                            // `ForEach(store.coins)` ≈ `data={coins}` + `renderItem`.
+                            // `keyExtractor` не потрібен: `Coin` — `Identifiable`, ключ береться з `coin.id`.
+                            ForEach(store.coins) { coin in
+                                // `NavigationLink(value:)` ≈ `<Link href={`/coin/${coin.id}`} asChild>`:
+                                // тап кладе `coin` у стек, а який екран показати — вирішує
+                                // `.navigationDestination` нижче (≈ таблиця маршрутів у `<Stack>`).
+                                NavigationLink(value: coin) {
+                                    CoinCard(coin: coin)
+                                }
+                                // Без цього весь текст у посиланні стане синім (як у кнопки).
+                                // `.plain` ≈ `<Pressable>` без стилів — лише обробка тапу.
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        // ≈ contentContainerStyle={{ padding: 16 }}.
+                        .padding(16)
+                    }
+                    // Сірий фон під білими картками (як фон екрана за замовчуванням у React Navigation).
+                    .background(Color(.systemGroupedBackground))
+                }
+            }
+            // ≈ `title: 'Головна'` у `<Tabs.Screen>`; тут великий заголовок зліва — стиль iOS.
+            .navigationTitle("Головна")
+            // ≈ `<Stack.Screen name="coin/[id]" />`: "коли в стек потрапляє `Coin` — показати CoinView".
+            // Маршрут визначається типом значення, а не рядком-URL.
+            .navigationDestination(for: Coin.self) { coin in
+                CoinView(coin: coin)
+            }
         }
-    }
-
-    // ≈ `JSON.stringify(coins, null, 2)`; `.prettyPrinted` — відступи, як третій аргумент `2`.
-    // `JSONSerialization` повертає байти (`Data`, ≈ Uint8Array), тому потім перетворюємо їх у рядок.
-    //
-    // Перевірка `isValidJSONObject` потрібна, бо на значеннях, яких немає в JSON
-    // (напр. Firestore `Timestamp`), `JSONSerialization` не кидає помилку, а валить додаток.
-    // - `guard ... else { return ... }` ≈ ранній вихід `if (!ok) return ...;`.
-    // - `try?` ≈ `try { ... } catch { return null }` одним словом: при помилці буде `nil`.
-    // - `String(describing:)` — запасний варіант, ≈ `String(value)`.
-    private func json(_ value: Any) -> String {
-        guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(withJSONObject: value, options: .prettyPrinted)
-        else { return String(describing: value) }
-        return String(decoding: data, as: UTF8.self)
     }
 }
 
