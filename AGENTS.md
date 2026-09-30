@@ -40,7 +40,7 @@
 - Зображення: `PhotosPicker`, `AsyncImage`
 - Збірка / залежності: Xcode project, Swift Package Manager (за потреби)
 - IDE: Xcode
-- Тестовий пристрій: iOS Simulator (пізніше — реальний iPhone)
+- Тестові пристрої: iOS Simulator, iPhone SE (iOS 18.6.2)
 
 ## Шпаргалка React Native → Swift/iOS (→ Kotlin)
 | React Native            | Swift / SwiftUI                     | Kotlin / Compose                 |
@@ -81,10 +81,12 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 Головна — випадкова країна, її монети через `whereField`, одна випадкова монета показується як `CoinDetails`.
 «Список» — `Picker` країн + картки `CoinCard`, тап відкриває екран монети `CoinView`
 (`NavigationStack` усередині таба).
-AI-кнопки в `CoinDetails` — масив `aiButtons` (`AIButton { id, title, logo, ask }`), одна під одною, спільна відповідь:
-«Запитати в Gemini» (Firebase AI Logic) і «Запитати в Groq» (`numismat-server` → `https://inua.tetiana-redko.com/chat`,
-provider `groq-gpt-oss`). Groq-кнопку написано, але ще не перевірено в симуляторі.
-Поки одна відповідь без чату, markdown не рендериться (як в Expo).
+AI-кнопки в `CoinDetails` (`AIButton { id, title, logo, ask }`) — акордеон (як в Expo): відповідь під своєю кнопкою,
+зберігається (`answers` / `openIds` / `loadingIds`), повторний тап ховає/показує, помилку — перезапитує; запити паралельні.
+Статична «Запитати в Gemini» (Firebase AI Logic) + динамічні з `GET /providers` (`fetchProviders`) → `askServer(id, …)`.
+Відповіді — markdown (`MarkdownText`). Тап по фото монети → `PhotoView` (`fullScreenCover`, pinch zoom).
+Акордеон, markdown і перегляд фото написано, ще не перевірено в симуляторі.
+Поки одна відповідь без чату.
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -138,3 +140,26 @@ provider `groq-gpt-oss`). Groq-кнопку написано, але ще не �
  структури (`ChatRequest`, `ChatResponse`), `ChatMessage.Role` — `enum` ≈ union `'user' | 'assistant'`, помилка — `ServerError`.
  URL константою (не секрет). Логотипи — `gemini.imageset` / `groq.imageset` в `Assets.xcassets`, у коді `ImageResource`
  (`.gemini`, `.groq` — генерує Xcode, ≈ `require`). Кнопки — `private let aiButtons: [AIButton]` з замиканням `ask`.
+- Кнопки зі списку сервера (як в Expo): `fetchProviders()` (`GET /providers` → `[Provider]`, `Decodable`),
+ `aiButtons = [geminiButton] + providers.map { toButton($0) }` (обчислювана властивість). `logo: number | string` →
+ `enum Logo { case asset(ImageResource), url(String) }` (≈ discriminated union), URL — через `AsyncImage`; `groq.imageset` видалено.
+ Акордеон: `answers: [String: Answer]`, `openIds` / `loadingIds: Set<String>` (≈ `Record<id, boolean>`),
+ `.contentShape(.rect)` — тап-зона на весь рядок при `.buttonStyle(.plain)`.
+- Markdown: без бібліотек (в Expo — `react-native-marked`). `Components/MarkdownText.swift`: inline (`**`, `*`, `` ` ``, посилання) —
+ вбудований `AttributedString(markdown:, .inlineOnlyPreservingWhitespace)`, блоки (заголовки `#`, списки `-` / `1.`, `---`)
+ розбираються по рядках. Таблиці й блоки коду — як є.
+- Граматика промпта (як на `numismat-server` / Kotlin): «про ню» → «про неї», «за ню» → «за неї».
+- Реальний пристрій: iPhone SE з iOS 18.6.2 був у Xcode в «Incompatible», бо шаблон Xcode 27 ставить
+ `IPHONEOS_DEPLOYMENT_TARGET = 27.0` → знижено до `18.0` (найновіше API в коді — `Tab` у `TabView`, iOS 18).
+ Далі не використовувати API новіші за iOS 18 (або обгортати в `if #available`).
+ Підпис: Signing & Capabilities → Team — Personal Team (безкоштовний Apple ID, `DEVELOPMENT_TEAM` у проєкті),
+ Bundle ID лишився `com.example.Numismat`. На iPhone — Developer Mode + довіра розробнику
+ («Загальні» → «Керування VPN і пристроями»). Застосунок з безкоштовним профілем працює 7 днів, потім — перезапуск з Xcode.
+ Запущено на iPhone SE — працює.
+- Перегляд фото (як в Expo `photo.tsx`): `Screens/PhotoView.swift`, відкривається з `CoinDetails` через
+ `.fullScreenCover(item: $photo)` (≈ `presentation: 'fullScreenModal'`; без свайпу вниз, тож не конфліктує з pan);
+ `Photo: Identifiable` — обгортка URL для `item:`. URL передається значенням — без `encodeURIComponent`.
+ Жести вбудовані (без gesture-handler / reanimated): `MagnifyGesture` (1–5×) + `DragGesture` (коли збільшено) +
+ `TapGesture(count: 2)` (скидання, `withAnimation` ≈ `withTiming`), усі через `simultaneously(with:)`;
+ `.scaleEffect` + `.offset` ≈ `transform`. Закриття — `@Environment(\.dismiss)` ≈ `router.back()`;
+ кнопка всередині safe area без `insets`, бо `ignoresSafeArea` лише на фоні.

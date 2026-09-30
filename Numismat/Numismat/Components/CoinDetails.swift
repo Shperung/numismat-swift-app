@@ -5,6 +5,11 @@
 //  Аналог src/components/coin-details.tsx в Expo — вміст екрана монети без навігації.
 //  Використовується у двох місцях (як і в Expo): екран монети (CoinView) і випадкова монета на Головній.
 //
+//  AI-кнопки — акордеон: відповідь показується під своєю кнопкою і зберігається;
+//  повторний тап ховає/показує її, а якщо була помилка — запитує знову. Можна відкрити всі, запити йдуть паралельно.
+//  Кнопка Gemini — завжди є (Firebase AI Logic), решта будуються зі списку моделей сервера (`GET /providers`),
+//  тож нова модель на сервері з'являється в додатку без релізу.
+//
 
 // Потрібен, хоча `Chat` ми отримуємо з Lib/AI.swift: через налаштування `MEMBER_IMPORT_VISIBILITY`
 // методи чужого модуля (`sendMessage`, `text`) видно лише у файлах, які імпортують його явно.
@@ -16,50 +21,82 @@ import SwiftUI
 // `private` на рівні файлу ≈ константа модуля без `export`.
 private let question = "Розкажи цікаві факти про цю монету"
 
-// Тип елемента масиву `aiButtons`. У TS тип виводиться з самого масиву (`(typeof aiButtons)[number]`),
-// у Swift масив з різнорідними полями потребує явного типу — оголошуємо struct.
+// ≈ type AiButton = { id: string; title: string; logo: number | string; ask: (coin: Coin) => Promise<string> }.
 private struct AIButton: Identifiable {
+    // ≈ `logo: number | string`: або локальна картинка (`require(...)`), або URL з сервера.
+    // Union-типу в Swift немає — замість нього `enum` з варіантами, що несуть значення
+    // (≈ discriminated union `{ kind: 'asset', ... } | { kind: 'url', ... }`).
+    enum Logo {
+        // Картинка з Assets.xcassets: Xcode генерує константу `.gemini` (≈ `require`, перевіряється під час збірки).
+        case asset(ImageResource)
+        case url(String)
+    }
+
     let id: String
     let title: String
-    // ≈ `logo: require('../../assets/ai/gemini.png')`. Картинки лежать в Assets.xcassets,
-    // а Xcode сам генерує для кожної константу (`.gemini`, `.groq`) — як `require`, помилка
-    // в назві видна під час збірки, а не в рантаймі.
-    let logo: ImageResource
-    // ≈ `ask: async (coin: Coin) => string`. Тип функції як значення: приймає `Coin`,
-    // асинхронна, може кинути помилку, повертає `String?` (Gemini може повернути відповідь без тексту).
-    let ask: (Coin) async throws -> String?
+    let logo: Logo
+    // Тип функції як значення: приймає `Coin`, асинхронна, може кинути помилку, повертає `String`.
+    let ask: (Coin) async throws -> String
 }
 
-// ≈ `const aiButtons = [{ id: 'gemini', ... }, { id: 'groq', ... }]`.
-private let aiButtons = [
+// ≈ const geminiButton: AiButton = { id: 'gemini', ..., ask: async (coin) => (...).response.text() }.
+private let geminiButton = AIButton(
+    id: "gemini",
+    title: "Запитати в Gemini про монету",
+    logo: .asset(.gemini),
+    // `{ coin in ... }` — замикання (≈ стрілкова функція `(coin) => ...`).
+    // `text` у Swift SDK — optional, тож `?? ""` (≈ `text()` у JS, що завжди повертає рядок).
+    ask: { coin in try await startCoinChat(coin).sendMessage(question).text ?? "" }
+)
+
+// ≈ const toButton = (p: Provider): AiButton => ({ id: p.id, title: `Запитати в ${p.title} про монету`, ... }).
+private func toButton(_ p: Provider) -> AIButton {
     AIButton(
-        id: "gemini",
-        title: "Запитати в Gemini про монету",
-        logo: .gemini,
-        // ≈ `async (coin) => (await startCoinChat(coin).sendMessage(QUESTION)).response.text()`.
-        // `{ coin in ... }` — замикання (≈ стрілкова функція `(coin) => ...`).
-        ask: { coin in try await startCoinChat(coin).sendMessage(question).text }
-    ),
-    AIButton(
-        id: "groq",
-        title: "Запитати в Groq про монету",
-        logo: .groq,
-        // ≈ `(coin) => askServer('groq-gpt-oss', coin, [{ role: 'user', content: QUESTION }])`.
+        id: p.id,
+        title: "Запитати в \(p.title) про монету",
+        logo: .url(p.logo),
         // `.user` — скорочений запис `ChatMessage.Role.user` (тип відомий з контексту).
-        ask: { coin in
-            try await askServer("groq-gpt-oss", coin: coin, messages: [ChatMessage(role: .user, content: question)])
-        }
-    ),
-]
+        ask: { coin in try await askServer(p.id, coin: coin, messages: [ChatMessage(role: .user, content: question)]) }
+    )
+}
+
+// Значення для `.fullScreenCover(item:)`: SwiftUI вимагає `Identifiable`, щоб відрізняти, яке саме фото
+// показане, тому URL загорнуто в struct з `id`.
+private struct Photo: Identifiable {
+    let url: String
+    var id: String { url }
+}
+
+// ≈ `{ text: string; error?: boolean }` — збережена відповідь однієї кнопки.
+private struct Answer {
+    let text: String
+    let isError: Bool
+}
 
 struct CoinDetails: View {
     let coin: Coin
 
-    // ≈ const [answer, setAnswer] = useState<string | null>(null);
-    //   const [loadingId, setLoadingId] = useState<string | null>(null);
-    // `loadingId` — яка саме кнопка зараз чекає відповідь (щоб показати крутилку саме на ній).
-    @State private var answer: String?
-    @State private var loadingId: String?
+    // ≈ const [answers, setAnswers] = useState<Record<string, { text; error? }>>({});
+    // `[String: Answer]` — словник ≈ `Record<string, Answer>`.
+    @State private var answers: [String: Answer] = [:]
+    // ≈ `open` / `loading` — `Record<string, boolean>`. У Swift для "увімкнено чи ні для id"
+    // зручніше `Set<String>` — множина id (≈ JS `Set`): `contains`, `insert`, `remove`.
+    @State private var openIds: Set<String> = []
+    @State private var loadingIds: Set<String> = []
+    // ≈ const [providers, setProviders] = useState<Provider[]>([]);
+    //   const [providersError, setProvidersError] = useState<string | null>(null);
+    @State private var providers: [Provider] = []
+    @State private var providersError: String?
+    // Фото, відкрите на весь екран (`nil` — нічого не відкрито). В Expo це роут `/photo?uri=...`,
+    // а тут модалка керується станом: є значення — показана, `nil` — закрита.
+    @State private var photo: Photo?
+
+    // ≈ `const aiButtons = [geminiButton, ...providers.map(toButton)]` у тілі компонента.
+    // Обчислювана властивість перераховується при кожному зверненні — як змінна в тілі функції-компонента.
+    // `+` для масивів ≈ спред `[a, ...b]`.
+    private var aiButtons: [AIButton] {
+        [geminiButton] + providers.map { toButton($0) }
+    }
 
     var body: some View {
         // ≈ <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>.
@@ -67,8 +104,8 @@ struct CoinDetails: View {
             VStack(alignment: .leading, spacing: 8) {
                 // ≈ styles.photos: { flexDirection: 'row', gap: 12, justifyContent: 'center', marginBottom: 8 }.
                 HStack(spacing: 12) {
-                    CoinPhoto(url: coin.avers, size: 150)
-                    CoinPhoto(url: coin.revers, size: 150)
+                    photoButton(coin.avers)
+                    photoButton(coin.revers)
                 }
                 // `maxWidth: .infinity` розтягує рядок на всю ширину, а `HStack` усередині
                 // за замовчуванням центрується ≈ `justifyContent: 'center'`.
@@ -93,76 +130,163 @@ struct CoinDetails: View {
 
                 // ≈ <View style={styles.aiButtons}> ({ gap: 8, marginTop: 16 }).
                 VStack(spacing: 8) {
-                    // ≈ `aiButtons.map((button) => <Pressable key={button.id} ...>)`; ключ — `id` з `Identifiable`.
+                    // ≈ `aiButtons.map((button) => <View key={button.id} style={styles.aiItem}>...)`.
                     ForEach(aiButtons) { button in
-                        // ≈ <Pressable onPress={() => askFacts(button)} disabled={loadingId !== null}>.
-                        // `Button { дія } label: { вигляд }` — два замикання: що робити і як виглядати.
-                        // Дія кнопки не може бути `async`, тому async-функцію запускаємо в `Task { ... }`
-                        // (≈ промис, який ніхто не чекає).
-                        Button {
-                            Task { await askFacts(button) }
-                        } label: {
-                            // ≈ styles.aiButton: { flexDirection: 'row', alignItems: 'center', gap: 10 }.
-                            HStack(spacing: 10) {
-                                // ≈ <Image source={button.logo} style={{ width: 24, height: 24, borderRadius: 4 }} />.
-                                Image(button.logo)
-                                    .resizable()
-                                    .frame(width: 24, height: 24)
-                                    .clipShape(.rect(cornerRadius: 4))
-                                // ≈ styles.aiButtonText: { fontWeight: '600', flex: 1 }.
-                                // `maxWidth: .infinity` ≈ `flex: 1` — текст забирає все вільне місце.
-                                Text(button.title)
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                // ≈ `{loadingId === button.id ? <ActivityIndicator /> : null}`.
-                                if loadingId == button.id {
-                                    ProgressView()
-                                }
-                            }
-                            // ≈ { padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }.
-                            // Рамки як CSS-властивості в SwiftUI немає: малюємо контур тієї ж форми
-                            // поверх view через `.overlay` (`stroke` — лише лінія, без заливки).
-                            .padding(12)
-                            .background(Color(.systemBackground), in: .rect(cornerRadius: 12))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color(.systemGray4))
-                            }
-                        }
-                        // `.plain` — без системного стилю кнопки (інакше SwiftUI перефарбує текст у синій).
-                        .buttonStyle(.plain)
-                        // ≈ `disabled={loadingId !== null}`: поки чекаємо відповідь, вимкнені обидві кнопки.
-                        .disabled(loadingId != nil)
+                        aiItem(button)
+                    }
+                    // ≈ `{providersError ? <Text style={styles.error}>...</Text> : null}`.
+                    if let providersError {
+                        Text("Помилка завантаження моделей: \(providersError)")
+                            .foregroundStyle(.red)
                     }
                 }
                 .padding(.top, 16)
-
-                // ≈ `{answer ? <Text style={styles.info}>{answer}</Text> : null}`.
-                // Markdown у відповіді, як і в Expo, поки не рендериться: `Text(String)` показує текст як є.
-                if let answer {
-                    Text(answer)
-                        .padding(.top, 8)
-                        .lineSpacing(4)
-                }
             }
             .padding(16)
         }
+        // ≈ `useEffect(() => { fetchProviders().then(setProviders).catch(...) }, [])`.
+        // `.task` запускається щоразу, коли view з'являється (напр. повернення на таб),
+        // тому `guard` — щоб не перезапитувати список, якщо він уже є.
+        .task {
+            guard providers.isEmpty else { return }
+            do {
+                providers = try await fetchProviders()
+            } catch {
+                providersError = String(describing: error)
+            }
+        }
+        // ≈ <Stack.Screen name="photo" options={{ presentation: 'fullScreenModal' }} />.
+        // `item: $photo` — коли `photo` стає не `nil`, екран відкривається з цим значенням;
+        // `dismiss()` у PhotoView сам поверне `photo` в `nil`.
+        // Як і `fullScreenModal`, на відміну від sheet, не закривається свайпом вниз — тож не конфліктує з pan-жестом.
+        .fullScreenCover(item: $photo) { photo in
+            PhotoView(url: photo.url)
+        }
     }
 
-    // ≈ const askFacts = async (button) => {
-    //     setLoadingId(button.id);
-    //     try { setAnswer(await button.ask(coin)); } catch (e) { ... } finally { setLoadingId(null); }
-    //   };
-    private func askFacts(_ button: AIButton) async {
-        loadingId = button.id
+    // ≈ <Link href={{ pathname: '/photo', params: { uri } }} asChild disabled={!uri}><Pressable><Image/></Pressable></Link>.
+    // Кодувати URL (`encodeURIComponent`, як в Expo) не треба: у екран передається саме значення, а не URL роуту.
+    private func photoButton(_ url: String?) -> some View {
+        Button {
+            // `if let` — відкриваємо лише, якщо фото є.
+            if let url {
+                photo = Photo(url: url)
+            }
+        } label: {
+            CoinPhoto(url: url, size: 150)
+        }
+        .buttonStyle(.plain)
+        .disabled(url == nil)
+    }
+
+    // Один елемент акордеону: кнопка + відповідь під нею (≈ <View style={styles.aiItem}>).
+    private func aiItem(_ button: AIButton) -> some View {
+        let answer = answers[button.id]
+        let isLoading = loadingIds.contains(button.id)
+        let isOpen = openIds.contains(button.id)
+
+        // `spacing: 0` — кнопка й відповідь впритул, відступи задають самі елементи.
+        return VStack(alignment: .leading, spacing: 0) {
+            // ≈ <Pressable style={styles.aiButton} onPress={() => onPress(button)} disabled={loading[button.id]}>.
+            // Дія кнопки не може бути `async`, тому async-функцію запускаємо в `Task { ... }`.
+            Button {
+                Task { await onPress(button) }
+            } label: {
+                // ≈ styles.aiButton: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 }.
+                HStack(spacing: 10) {
+                    logo(button.logo)
+                    // ≈ styles.aiButtonText: { fontWeight: '600', flex: 1 }; `maxWidth: .infinity` ≈ `flex: 1`.
+                    Text(button.title)
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // ≈ loading ? <ActivityIndicator /> : (є відповідь без помилки ? <Ionicons chevron /> : null).
+                    if isLoading {
+                        ProgressView()
+                    } else if let answer, !answer.isError {
+                        // SF Symbols "chevron.up" / "chevron.down" ≈ Ionicons 'chevron-up' / 'chevron-down'.
+                        Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(12)
+                // З `.buttonStyle(.plain)` тапається лише "непрозорий" вміст (текст, картинка).
+                // `contentShape` робить тап-зоною весь прямокутник рядка, як у `<Pressable>`.
+                .contentShape(.rect)
+            }
+            // `.plain` — без системного стилю кнопки (інакше SwiftUI перефарбує текст у синій).
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+
+            // ≈ `{open[id] && answers[id] ? (error ? <Text style={styles.error}> : <MarkdownText />) : null}`.
+            if isOpen, let answer {
+                Group {
+                    if answer.isError {
+                        Text(answer.text)
+                            .foregroundStyle(.red)
+                    } else {
+                        MarkdownText(value: answer.text)
+                    }
+                }
+                // ≈ styles.answer: { paddingHorizontal: 12, paddingBottom: 12 }.
+                .padding([.horizontal, .bottom], 12)
+            }
+        }
+        // ≈ styles.aiItem: { borderRadius: 12, borderWidth: 1, borderColor: '#ddd', backgroundColor: '#fff' }.
+        // Рамки як CSS-властивості в SwiftUI немає: малюємо контур тієї ж форми
+        // поверх view через `.overlay` (`stroke` — лише лінія, без заливки).
+        .background(Color(.systemBackground), in: .rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4))
+        }
+    }
+
+    // ≈ <Image source={button.logo} style={{ width: 24, height: 24, borderRadius: 4 }} />.
+    // `expo-image` сам приймає і `require`, і URL, а тут розбираємо варіанти `enum` через `switch`
+    // (≈ `switch (logo.kind)` для discriminated union; `let` витягує значення з варіанта).
+    private func logo(_ logo: AIButton.Logo) -> some View {
+        Group {
+            switch logo {
+            case .asset(let resource):
+                Image(resource).resizable()
+            case .url(let url):
+                // Картинка з мережі (як у CoinPhoto); поки вантажиться — сірий квадрат.
+                AsyncImage(url: URL(string: url)) { image in
+                    image.resizable()
+                } placeholder: {
+                    Color(.systemGray5)
+                }
+            }
+        }
+        .frame(width: 24, height: 24)
+        .clipShape(.rect(cornerRadius: 4))
+    }
+
+    // ≈ const onPress = async ({ id, ask }: AiButton) => { ... }.
+    private func onPress(_ button: AIButton) async {
+        let id = button.id
+        // Уже є відповідь без помилки — лише сховати/показати (≈ `setOpen((o) => ({ ...o, [id]: !o[id] }))`).
+        if let answer = answers[id], !answer.isError {
+            if openIds.contains(id) {
+                openIds.remove(id)
+            } else {
+                openIds.insert(id)
+            }
+            return
+        }
+        // ≈ setLoading((l) => ({ ...l, [id]: true })); setOpen((o) => ({ ...o, [id]: true })).
+        // У React стан змінюють через нову копію об'єкта (`{ ...o }`), а тут просто змінюємо `Set` —
+        // SwiftUI сам помітить зміну `@State` і перемалює view.
+        loadingIds.insert(id)
+        openIds.insert(id)
         // `defer` виконується при виході з функції за будь-яких умов ≈ блок `finally`.
-        defer { loadingId = nil }
+        defer { loadingIds.remove(id) }
         do {
-            // Кнопка сама знає, кого питати: Gemini через Firebase чи Groq через numismat-server.
-            answer = try await button.ask(coin)
+            // ≈ setAnswers((a) => ({ ...a, [id]: { text } })).
+            answers[id] = Answer(text: try await button.ask(coin), isError: false)
         } catch {
-            // ≈ setAnswer(`Помилка: ${String(e)}`).
-            answer = "Помилка: \(error)"
+            // ≈ setAnswers((a) => ({ ...a, [id]: { text: `Помилка: ${String(e)}`, error: true } })).
+            answers[id] = Answer(text: "Помилка: \(error)", isError: true)
         }
     }
 }

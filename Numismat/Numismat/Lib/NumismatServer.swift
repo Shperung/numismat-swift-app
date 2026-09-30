@@ -2,7 +2,8 @@
 //  NumismatServer.swift
 //  Numismat
 //
-//  Аналог src/lib/numismat-server.ts в Expo — запит до спільного бекенду numismat-server (AI-проксі):
+//  Аналог src/lib/numismat-server.ts в Expo — запити до спільного бекенду numismat-server (AI-проксі):
+//  `fetchProviders()` — список моделей (`GET /providers`), `askServer(...)` — питання моделі (`POST /chat`).
 //
 //    const API_URL = 'https://inua.tetiana-redko.com';
 //    type Message = { role: 'user' | 'assistant'; content: string };
@@ -25,6 +26,31 @@ import Foundation
 // `URL(string:)` повертає optional; `!` — "точно не nil" (≈ `!` non-null assertion у TS):
 // для рядка-літерала, який ми бачимо, це безпечно; якби URL був кривий — падіння при старті.
 private let apiURL = URL(string: "https://inua.tetiana-redko.com")!
+
+// ≈ `export type Provider = { id: string; title: string; logo: string }` — модель з `GET /providers`.
+// `Decodable` — щоб `JSONDecoder` зібрав масив `[Provider]` з JSON-відповіді.
+struct Provider: Decodable {
+    let id: String
+    let title: String
+    // URL картинки (напр. "https://github.com/openai.png?size=128").
+    let logo: String
+}
+
+// ≈ export async function fetchProviders() {
+//     const res = await fetch(`${API_URL}/providers`);
+//     if (!res.ok) throw new Error(`${res.status}`);
+//     return (await res.json()) as Provider[];
+//   }
+// Для GET досить `data(from: URL)` — без `URLRequest`, як `fetch(url)` без другого аргументу.
+func fetchProviders() async throws -> [Provider] {
+    let (data, response) = try await URLSession.shared.data(from: apiURL.appending(path: "providers"))
+    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+    guard (200..<300).contains(status) else {
+        throw ServerError(description: "\(status)")
+    }
+    // `[Provider].self` — сам тип "масив Provider" як значення (≈ `as Provider[]`, але з реальною перевіркою).
+    return try JSONDecoder().decode([Provider].self, from: data)
+}
 
 // ≈ `type Message = { role: 'user' | 'assistant'; content: string }`.
 struct ChatMessage: Encodable {

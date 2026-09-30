@@ -9,8 +9,7 @@
 //    export function startCoinChat(coin: Coin) {
 //      const model = getGenerativeModel(ai, {
 //        model: "gemini-3.5-flash-lite",
-//        systemInstruction: "Ти досвідчений нумізмат. ... " + `Розмова про монету: ${JSON.stringify(coin)}, ...`,
-//      });
+//        systemInstruction: "Ти досвідчений нумізмат. ... " + `Розмова про монету: ${JSON.stringify(coin)}, ...`,//      });
 //      return model.startChat();
 //    }
 //
@@ -40,10 +39,11 @@ func startCoinChat(_ coin: Coin) -> Chat {
         modelName: "gemini-3.5-flash-lite",
         systemInstruction: ModelContent(
             role: "system",
+            // Той самий промпт, що на numismat-server (`systemPrompt`) і в Kotlin.
             // Рядок, розбитий на частини через `+` (≈ `"..." + \`...\`` у TS); `\(x)` ≈ `${x}`.
             parts: "Ти досвідчений нумізмат. Відповідай українською, коротко і цікаво. "
-                + "Розмова про монету: \(coinJSON), які факти про ню є, чи вона ще в вжитку, "
-                + "що за ню можна купити або можна було купити у рік виходу"
+                + "Розмова про монету: \(coinJSON), які факти про неї є, чи вона ще в вжитку, "
+                + "що за неї можна купити або можна було купити у рік виходу"
         )
     )
     return model.startChat()
