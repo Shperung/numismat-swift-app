@@ -68,6 +68,7 @@
 8. [ ] SwiftData: збереження між запусками
 9. [ ] Фото монет (камера/галерея)
 10. [ ] Пошук, фільтри, статистика
+11. [ ] AI «цікаві факти»: Gemini (Firebase AI Logic) ✓ → кнопка Groq через `numismat-server` ✓ → markdown → чат з контекстом → інші провайдери
 
 ## Поточний стан
 Крок 2 — проєкт створено з шаблону iOS App (SwiftUI) у `Numismat/`, Bundle ID `com.example.Numismat`.
@@ -80,8 +81,10 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 Головна — випадкова країна, її монети через `whereField`, одна випадкова монета показується як `CoinDetails`.
 «Список» — `Picker` країн + картки `CoinCard`, тап відкриває екран монети `CoinView`
 (`NavigationStack` усередині таба).
-У `CoinDetails` — кнопка «Дізнатись цікаві факти» (Firebase AI Logic, Gemini): збирається, кнопка показується;
-поки одна відповідь без чату, markdown не рендериться (як в Expo).
+AI-кнопки в `CoinDetails` — масив `aiButtons` (`AIButton { id, title, logo, ask }`), одна під одною, спільна відповідь:
+«Запитати в Gemini» (Firebase AI Logic) і «Запитати в Groq» (`numismat-server` → `https://inua.tetiana-redko.com/chat`,
+provider `groq-gpt-oss`). Groq-кнопку написано, але ще не перевірено в симуляторі.
+Поки одна відповідь без чату, markdown не рендериться (як в Expo).
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -130,3 +133,8 @@ Hello World запущено в симуляторі. Додано bottom tabs (
  + `startChat()`; JSON монети через `JSONEncoder` (`Coin: Encodable`). У `CoinDetails` — `Button` + `Task { await askFacts() }`,
  `defer` ≈ `finally`, `ProgressView` ≈ `ActivityIndicator`. Через `MEMBER_IMPORT_VISIBILITY` у `CoinDetails`
  потрібен явний `import FirebaseAILogic` (інакше `sendMessage` / `text` не видно).
+- Groq через спільний бекенд `numismat-server` (опис і контракт — в AGENTS.md Expo-проєкту): `Lib/NumismatServer.swift` —
+ `askServer(provider, coin:, messages:)` на `URLSession` + `async/await` (≈ `fetch`), тіло/відповідь — `Encodable`/`Decodable`
+ структури (`ChatRequest`, `ChatResponse`), `ChatMessage.Role` — `enum` ≈ union `'user' | 'assistant'`, помилка — `ServerError`.
+ URL константою (не секрет). Логотипи — `gemini.imageset` / `groq.imageset` в `Assets.xcassets`, у коді `ImageResource`
+ (`.gemini`, `.groq` — генерує Xcode, ≈ `require`). Кнопки — `private let aiButtons: [AIButton]` з замиканням `ask`.

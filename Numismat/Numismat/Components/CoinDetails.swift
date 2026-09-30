@@ -12,13 +12,54 @@
 import FirebaseAILogic
 import SwiftUI
 
+// ≈ `const QUESTION = 'Розкажи цікаві факти про цю монету'`.
+// `private` на рівні файлу ≈ константа модуля без `export`.
+private let question = "Розкажи цікаві факти про цю монету"
+
+// Тип елемента масиву `aiButtons`. У TS тип виводиться з самого масиву (`(typeof aiButtons)[number]`),
+// у Swift масив з різнорідними полями потребує явного типу — оголошуємо struct.
+private struct AIButton: Identifiable {
+    let id: String
+    let title: String
+    // ≈ `logo: require('../../assets/ai/gemini.png')`. Картинки лежать в Assets.xcassets,
+    // а Xcode сам генерує для кожної константу (`.gemini`, `.groq`) — як `require`, помилка
+    // в назві видна під час збірки, а не в рантаймі.
+    let logo: ImageResource
+    // ≈ `ask: async (coin: Coin) => string`. Тип функції як значення: приймає `Coin`,
+    // асинхронна, може кинути помилку, повертає `String?` (Gemini може повернути відповідь без тексту).
+    let ask: (Coin) async throws -> String?
+}
+
+// ≈ `const aiButtons = [{ id: 'gemini', ... }, { id: 'groq', ... }]`.
+private let aiButtons = [
+    AIButton(
+        id: "gemini",
+        title: "Запитати в Gemini про монету",
+        logo: .gemini,
+        // ≈ `async (coin) => (await startCoinChat(coin).sendMessage(QUESTION)).response.text()`.
+        // `{ coin in ... }` — замикання (≈ стрілкова функція `(coin) => ...`).
+        ask: { coin in try await startCoinChat(coin).sendMessage(question).text }
+    ),
+    AIButton(
+        id: "groq",
+        title: "Запитати в Groq про монету",
+        logo: .groq,
+        // ≈ `(coin) => askServer('groq-gpt-oss', coin, [{ role: 'user', content: QUESTION }])`.
+        // `.user` — скорочений запис `ChatMessage.Role.user` (тип відомий з контексту).
+        ask: { coin in
+            try await askServer("groq-gpt-oss", coin: coin, messages: [ChatMessage(role: .user, content: question)])
+        }
+    ),
+]
+
 struct CoinDetails: View {
     let coin: Coin
 
     // ≈ const [answer, setAnswer] = useState<string | null>(null);
-    //   const [loading, setLoading] = useState(false);
+    //   const [loadingId, setLoadingId] = useState<string | null>(null);
+    // `loadingId` — яка саме кнопка зараз чекає відповідь (щоб показати крутилку саме на ній).
     @State private var answer: String?
-    @State private var loading = false
+    @State private var loadingId: String?
 
     var body: some View {
         // ≈ <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>.
@@ -50,38 +91,52 @@ struct CoinDetails: View {
                         .lineSpacing(4)
                 }
 
-                // ≈ <Pressable style={styles.aiButton} onPress={askFacts} disabled={loading}>.
-                // `Button { дія } label: { вигляд }` — два замикання: що робити і як виглядати.
-                // `onPress` не може бути `async`, тому async-функцію запускаємо в `Task { ... }`
-                // (≈ `onPress={() => { askFacts(); }}` — промис, який ніхто не чекає).
-                Button {
-                    Task { await askFacts() }
-                } label: {
-                    // `Label` = іконка + текст у рядок (≈ <Ionicons name="sparkles" /> + <Text>).
-                    // "sparkles" — така сама іконка, тільки з SF Symbols.
-                    Label("Дізнатись цікаві факти про цю монету", systemImage: "sparkles")
-                        // ≈ styles.aiButtonText: { color: '#fff', fontWeight: '600' }.
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        // ≈ styles.aiButton: { padding: 12, borderRadius: 12, backgroundColor: '#1a73e8' }.
-                        // `maxWidth: .infinity` — кнопка на всю ширину, як `<Pressable>` у колонці RN.
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color(red: 0x1A / 255, green: 0x73 / 255, blue: 0xE8 / 255),
-                                    in: .rect(cornerRadius: 12))
+                // ≈ <View style={styles.aiButtons}> ({ gap: 8, marginTop: 16 }).
+                VStack(spacing: 8) {
+                    // ≈ `aiButtons.map((button) => <Pressable key={button.id} ...>)`; ключ — `id` з `Identifiable`.
+                    ForEach(aiButtons) { button in
+                        // ≈ <Pressable onPress={() => askFacts(button)} disabled={loadingId !== null}>.
+                        // `Button { дія } label: { вигляд }` — два замикання: що робити і як виглядати.
+                        // Дія кнопки не може бути `async`, тому async-функцію запускаємо в `Task { ... }`
+                        // (≈ промис, який ніхто не чекає).
+                        Button {
+                            Task { await askFacts(button) }
+                        } label: {
+                            // ≈ styles.aiButton: { flexDirection: 'row', alignItems: 'center', gap: 10 }.
+                            HStack(spacing: 10) {
+                                // ≈ <Image source={button.logo} style={{ width: 24, height: 24, borderRadius: 4 }} />.
+                                Image(button.logo)
+                                    .resizable()
+                                    .frame(width: 24, height: 24)
+                                    .clipShape(.rect(cornerRadius: 4))
+                                // ≈ styles.aiButtonText: { fontWeight: '600', flex: 1 }.
+                                // `maxWidth: .infinity` ≈ `flex: 1` — текст забирає все вільне місце.
+                                Text(button.title)
+                                    .fontWeight(.semibold)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                // ≈ `{loadingId === button.id ? <ActivityIndicator /> : null}`.
+                                if loadingId == button.id {
+                                    ProgressView()
+                                }
+                            }
+                            // ≈ { padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ddd' }.
+                            // Рамки як CSS-властивості в SwiftUI немає: малюємо контур тієї ж форми
+                            // поверх view через `.overlay` (`stroke` — лише лінія, без заливки).
+                            .padding(12)
+                            .background(Color(.systemBackground), in: .rect(cornerRadius: 12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(.systemGray4))
+                            }
+                        }
+                        // `.plain` — без системного стилю кнопки (інакше SwiftUI перефарбує текст у синій).
+                        .buttonStyle(.plain)
+                        // ≈ `disabled={loadingId !== null}`: поки чекаємо відповідь, вимкнені обидві кнопки.
+                        .disabled(loadingId != nil)
+                    }
                 }
-                // `.plain` — без системного стилю кнопки (інакше SwiftUI перефарбує текст у синій).
-                .buttonStyle(.plain)
-                // ≈ `disabled={loading}`.
-                .disabled(loading)
-                // ≈ marginTop: 16.
                 .padding(.top, 16)
 
-                // ≈ `{loading ? <ActivityIndicator /> : null}`; `ProgressView()` без параметрів — "крутилка".
-                if loading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                }
                 // ≈ `{answer ? <Text style={styles.info}>{answer}</Text> : null}`.
                 // Markdown у відповіді, як і в Expo, поки не рендериться: `Text(String)` показує текст як є.
                 if let answer {
@@ -94,16 +149,17 @@ struct CoinDetails: View {
         }
     }
 
-    // ≈ const askFacts = async () => { setLoading(true); try { ... } catch { ... } finally { setLoading(false) } }.
-    private func askFacts() async {
-        loading = true
+    // ≈ const askFacts = async (button) => {
+    //     setLoadingId(button.id);
+    //     try { setAnswer(await button.ask(coin)); } catch (e) { ... } finally { setLoadingId(null); }
+    //   };
+    private func askFacts(_ button: AIButton) async {
+        loadingId = button.id
         // `defer` виконується при виході з функції за будь-яких умов ≈ блок `finally`.
-        defer { loading = false }
+        defer { loadingId = nil }
         do {
-            // ≈ `await startCoinChat(coin).sendMessage('Розкажи цікаві факти про цю монету')`.
-            let response = try await startCoinChat(coin).sendMessage("Розкажи цікаві факти про цю монету")
-            // ≈ `result.response.text()`; у Swift `text` — optional-властивість (`nil`, якщо тексту немає).
-            answer = response.text
+            // Кнопка сама знає, кого питати: Gemini через Firebase чи Groq через numismat-server.
+            answer = try await button.ask(coin)
         } catch {
             // ≈ setAnswer(`Помилка: ${String(e)}`).
             answer = "Помилка: \(error)"
