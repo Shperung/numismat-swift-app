@@ -7,7 +7,7 @@
 //  Точка входу додатку. В Expo її роль ділять між собою:
 //  - `expo-router/entry` (що запускати першим),
 //  - src/lib/firebase.ts (ініціалізація Firebase при імпорті модуля),
-//  - src/app/_layout.tsx (обгортка `<CoinsProvider>` навколо `<Tabs>`).
+//  - src/app/_layout.tsx (обгортка `<CountriesProvider>` навколо навігації).
 //
 
 // `import FirebaseCore` ≈ `import { initializeApp } from 'firebase/app'`.
@@ -30,11 +30,10 @@ struct NumismatApp: App {
     }
 
     // В Expo стан живе всередині провайдера:
-    //   const [state, setState] = useState<CoinsState>(...)
+    //   const [state, setState] = useState<CountriesState>(...)
     // Тут створюємо стор один раз і тримаємо в `@State`, щоб SwiftUI не створював його заново
     // при кожному перерахунку `body` (як `useState` зберігає значення між рендерами).
     // `private` — видно лише в цьому struct (≈ змінна, не експортована з модуля).
-    @State private var coinsStore = CoinsStore()
     @State private var countriesStore = CountriesStore()
 
     // `body` — що показати. `WindowGroup` — вікно додатку (≈ корінь, який рендерить Expo Router).
@@ -42,17 +41,15 @@ struct NumismatApp: App {
         WindowGroup {
             // `ContentView` — таби (≈ `<Tabs>` з _layout.tsx).
             ContentView()
-                // ≈ `<CoinsProvider>{children}</CoinsProvider>`:
-                // стор стає доступним усім вкладеним view через `@Environment(CoinsStore.self)`
-                // (≈ `useContext(CoinsContext)`). Модифікатори в SwiftUI "обгортають" view,
+                // ≈ `<CountriesProvider>{children}</CountriesProvider>`:
+                // стор стає доступним усім вкладеним view через `@Environment(CountriesStore.self)`
+                // (≈ `useContext(CountriesContext)`). Модифікатори в SwiftUI "обгортають" view,
                 // тож `.environment` тут — це і є провайдер навколо табів.
-                .environment(coinsStore)
-                // ≈ `useEffect(() => { fetchCollection('coins')... }, [])` у провайдері.
+                .environment(countriesStore)
+                // ≈ `useEffect(() => { fetchCollection('countries')... }, [])` у провайдері.
                 // `.task` запускає async-код, коли view з'являється, і сам скасовує його,
                 // коли view зникає (в RN для цього треба повертати cleanup / AbortController).
                 // `await` — як у JS: чекаємо на асинхронну функцію.
-                .task { await coinsStore.load() }
-                .environment(countriesStore)
                 .task { await countriesStore.load() }
         }
     }

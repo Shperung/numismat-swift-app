@@ -18,6 +18,7 @@
 - Перед новою темою коротко пояснити "навіщо", потім "як".
 - Мова спілкування — українська.
 - Після завершення кроку оновлювати розділи "План", "Поточний стан" і "Журнал" у цьому файлі.
+- Не запускати збірку (`xcodebuild`) і симулятор самостійно — автор запускає сам у Xcode і розповідає, що бачить.
 
 ## Функціональність додатку (цільова)
 - Список монет колекції.
@@ -75,10 +76,12 @@ Hello World запущено в симуляторі. Додано bottom tabs (
 так само як в Expo-проєкті. Далі — розбір `NumismatApp.swift` і `ContentView.swift`.
 Підключено Firestore (як в Expo / Kotlin): колекція `coins` читається через `CoinsStore` і виводиться
 на Головній як JSON. Працює в симуляторі (з `GoogleService-Info.plist` iOS-застосунку з Firebase Console).
-У змінених файлах — докладні коментарі з аналогіями Expo. Головна — список карток `CoinCard`
-(`LazyVStack`), тап відкриває екран монети `CoinView` (`NavigationStack` усередині таба).
-«Список» — фільтр за країною (як в Expo): `Picker` країн (з `CountriesStore`), при старті випадкова країна,
-монети запитуються з Firestore через `whereField`.
+У змінених файлах — докладні коментарі з аналогіями Expo. `countries` вантажаться при старті (`CountriesStore`).
+Головна — випадкова країна, її монети через `whereField`, одна випадкова монета показується як `CoinDetails`.
+«Список» — `Picker` країн + картки `CoinCard`, тап відкриває екран монети `CoinView`
+(`NavigationStack` усередині таба).
+У `CoinDetails` — кнопка «Дізнатись цікаві факти» (Firebase AI Logic, Gemini): збирається, кнопка показується;
+поки одна відповідь без чату, markdown не рендериться (як в Expo).
 Крок 1 (основи Swift) поки пропущено — пояснюємо синтаксис по ходу.
 
 ## Журнал (що вивчено / зроблено)
@@ -115,3 +118,15 @@ Hello World запущено в симуляторі. Додано bottom tabs (
  (≈ `@expo/ui` Picker, який на iOS і є SwiftUI `Picker`), `.onChange(of: store.countries, initial: true)` →
  випадкова країна, `.task(id: country)` ≈ `useEffect(..., [country])` з автоскасуванням; перевірка
  `Task.isCancelled` після `await` ≈ прапорець `active` проти гонки відповідей.
+- Випадкова монета на Головній (як в Expo): `.task(id: store.countries)` ≈ `useEffect(..., [countries])`,
+ `randomElement()` замість хелпера `pickRandom`; три стани `Coin | null | undefined` → `coin: Coin?` + `notFound`.
+ Спільний `Components/CoinDetails.swift` (≈ `coin-details.tsx`) для Головної і `CoinView`. У `Coin` додано `year`.
+ `CoinsStore` більше не підключений (в Expo `CoinsProvider` лишився лише для пошуку монети за `id`
+ у `coin/[id]`, а тут монета передається в екран напряму) — файл `Stores/CoinsStore.swift` можна видалити.
+- Firebase AI Logic (як в Expo, налаштування консолі спільні: Agent Platform backend, App Check для AI Logic — Unenforced):
+ SPM-продукт `FirebaseAILogic` з того ж `firebase-ios-sdk` (`FirebaseAI` — лише обгортка). `Lib/AI.swift` —
+ `FirebaseAI.firebaseAI(backend: .agentPlatform(location: "global"))`, `startCoinChat(coin)` =
+ `generativeModel(modelName: "gemini-3.5-flash-lite", systemInstruction: ModelContent(role: "system", parts: ...))`
+ + `startChat()`; JSON монети через `JSONEncoder` (`Coin: Encodable`). У `CoinDetails` — `Button` + `Task { await askFacts() }`,
+ `defer` ≈ `finally`, `ProgressView` ≈ `ActivityIndicator`. Через `MEMBER_IMPORT_VISIBILITY` у `CoinDetails`
+ потрібен явний `import FirebaseAILogic` (інакше `sendMessage` / `text` не видно).

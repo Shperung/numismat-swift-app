@@ -51,6 +51,6 @@ struct CoinCard: View {
 // Прев'ю з тестовою монетою: memberwise init `Coin(id:...)` згенерував Swift (див. Coin.swift).
 #Preview {
     CoinCard(coin: Coin(id: "1", country: "ua", name: "10 гривень", value: "10", currency: "uag",
-                        info: nil, avers: nil, revers: nil))
+                        year: "2025", info: nil, avers: nil, revers: nil))
         .padding()
 }

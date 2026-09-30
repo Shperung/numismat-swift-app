@@ -5,7 +5,7 @@
 //  Аналог src/types/coin.ts в Expo:
 //
 //    export type Coin = {
-//      id: string; country: string; name: string; value: number; currency: string;
+//      id: string; country: string; name: string; value: number; currency: string; year: number;
 //      info?: string; avers?: string; revers?: string;
 //    };
 //
@@ -14,8 +14,9 @@
 // Протоколи після `:` ≈ `implements` інтерфейсів:
 // - `Identifiable` — має поле `id`; потрібен для `ForEach` (≈ `keyExtractor={(coin) => coin.id}`).
 // - `Hashable` — можна порівнювати й хешувати; потрібен, щоб передати монету в `NavigationLink(value:)`.
-// Реалізацію обох протоколів Swift генерує сам, бо всі поля — прості типи.
-struct Coin: Identifiable, Hashable {
+// - `Encodable` — можна перетворити в JSON через `JSONEncoder` (≈ `JSON.stringify(coin)` у Lib/AI.swift).
+// Реалізацію всіх протоколів Swift генерує сам, бо всі поля — прості типи.
+struct Coin: Identifiable, Hashable, Encodable {
     let id: String
     let country: String
     let name: String
@@ -23,6 +24,8 @@ struct Coin: Identifiable, Hashable {
     // TS це "проковтнув" через `as Coin`, а Swift перевіряє типи і в рантаймі.
     let value: String
     let currency: String
+    // ≈ `year: number`. Як і `value`, зберігаємо рядком: так не важливо, число це в Firestore чи рядок.
+    let year: String
     // `String?` ≈ `info?: string` (optional, може бути `nil`).
     let info: String?
     let avers: String?
@@ -44,6 +47,7 @@ extension Coin {
         // `.map` на optional ≈ `x != null ? String(x) : undefined`.
         value = data["value"].map { "\($0)" } ?? ""
         currency = data["currency"] as? String ?? ""
+        year = data["year"].map { "\($0)" } ?? ""
         info = data["info"] as? String
         avers = data["avers"] as? String
         revers = data["revers"] as? String

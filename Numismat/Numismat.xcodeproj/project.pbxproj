@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		7E9083A130658F24002437C0 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 7E9083A030658F24002437C0 /* FirebaseFirestore */; };
+		7E9083A330658F24002437C0 /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 7E9083A230658F24002437C0 /* FirebaseAILogic */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				7E9083A130658F24002437C0 /* FirebaseFirestore in Frameworks */,
+				7E9083A330658F24002437C0 /* FirebaseAILogic in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 			name = Numismat;
 			packageProductDependencies = (
 				7E9083A030658F24002437C0 /* FirebaseFirestore */,
+				7E9083A230658F24002437C0 /* FirebaseAILogic */,
 			);
 			productName = Numismat;
 			productReference = 7E90833D30658F24002437C0 /* Numismat.app */;
@@ -344,6 +347,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7E90839F30658F24002437C0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		7E9083A230658F24002437C0 /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7E90839F30658F24002437C0 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

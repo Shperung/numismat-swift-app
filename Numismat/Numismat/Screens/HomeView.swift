@@ -2,22 +2,22 @@
 //  HomeView.swift
 //  Numismat
 //
-//  Аналог src/app/(tabs)/index.tsx в Expo:
+//  Аналог src/app/(tabs)/index.tsx в Expo — одна випадкова монета:
 //
-//    export default function HomeScreen() {
-//      const { coins, loading, error } = useCoins();
-//      if (loading || error) {
-//        return <Text style={{ padding: 16 }}>{error ?? 'Завантаження...'}</Text>;
-//      }
-//      return (
-//        <FlatList
-//          data={coins}
-//          keyExtractor={(coin) => coin.id}
-//          renderItem={({ item }) => <CoinCard coin={item} />}
-//          contentContainerStyle={{ padding: 16, gap: 12 }}
-//        />
-//      );
-//    }
+//    const { countries, error: countriesError } = useCountries();
+//    const [coin, setCoin] = useState<Coin | null>();
+//    const [error, setError] = useState<string | null>(null);
+//
+//    useEffect(() => {
+//      const country = pickRandom(countries);
+//      if (!country) return;
+//      fetchCoinsByCountry(country.id)
+//        .then((coins) => setCoin(pickRandom(coins) ?? null))
+//        .catch((e) => setError(String(e)));
+//    }, [countries]);
+//
+//    const message = countriesError ?? error ?? (coin === null ? 'Монет не знайдено' : 'Завантаження...');
+//    return coin ? <CoinDetails coin={coin} /> : <Text style={{ padding: 16 }}>{message}</Text>;
 //
 
 // `import SwiftUI` ≈ `import { Text, View } from 'react-native'`,
@@ -27,61 +27,44 @@ import SwiftUI
 // `struct HomeView: View` ≈ `export default function HomeScreen()`.
 // Імпорт не потрібен: усі файли одного таргету бачать одне одного (як один модуль).
 struct HomeView: View {
-    // ≈ `const { coins, loading, error } = useCoins();`
-    // `@Environment(CoinsStore.self)` бере стор, який поклали вище через `.environment(coinsStore)`
-    // у NumismatApp.swift. Якщо провайдера вище немає — падіння (в React був би дефолт з `createContext(...)`).
-    @Environment(CoinsStore.self) private var store
+    // ≈ `const { countries, error: countriesError } = useCountries();`
+    @Environment(CountriesStore.self) private var store
+
+    // В Expo `coin` має три стани: `undefined` — вантажиться, `null` — монет немає, `Coin` — є.
+    // У Swift optional має лише два (`nil` або значення), тому "монет немає" — окремий прапорець.
+    @State private var coin: Coin?
+    @State private var notFound = false
+    @State private var error: String?
 
     var body: some View {
-        // `NavigationStack` ≈ `<Stack>` з src/app/_layout.tsx: дає заголовок зверху і стек екранів.
-        //
-        // Різниця зі структурою Expo: там Stack — корінь, а таби всередині нього, тому екран
-        // монети відкривається ПОВЕРХ табів (tab bar зникає). В iOS прийнято навпаки: свій
-        // NavigationStack усередині кожного таба, тож екран монети відкривається всередині
-        // "Головної", tab bar лишається, а при перемиканні табів стек кожного зберігається.
+        // `NavigationStack` тут лише заради заголовка "Головна" (≈ header у `<Tabs>`); переходів з Головної немає.
         NavigationStack {
-            // `Group` — "невидимий" контейнер (≈ `<>...</>` фрагмент), щоб навісити модифікатори
-            // (`.navigationTitle` нижче) на будь-яку з гілок `if`.
             Group {
-                // ≈ `if (loading || error) return <Text ...>`. У SwiftUI не можна "рано повернути"
-                // з `body`, тому гілки пишуться через `if / else` прямо в описі UI.
-                if store.loading || store.error != nil {
-                    Text(store.error ?? "Завантаження...")
-                        .padding(16)
+                // ≈ `coin ? <CoinDetails coin={coin} /> : <Text>{message}</Text>`.
+                if let coin {
+                    CoinDetails(coin: coin)
                 } else {
-                    // `ScrollView` + `LazyVStack` ≈ `<FlatList>`: "Lazy" — рендерить лише те,
-                    // що видно на екрані (як віртуалізація у FlatList). Звичайний `VStack` створив би все одразу.
-                    // Є ще `List` (≈ FlatList зі стилем iOS-таблиці), але для власних карток простіше так.
-                    ScrollView {
-                        // `spacing: 12` ≈ `gap: 12`.
-                        LazyVStack(spacing: 12) {
-                            // `ForEach(store.coins)` ≈ `data={coins}` + `renderItem`.
-                            // `keyExtractor` не потрібен: `Coin` — `Identifiable`, ключ береться з `coin.id`.
-                            ForEach(store.coins) { coin in
-                                // `NavigationLink(value:)` ≈ `<Link href={`/coin/${coin.id}`} asChild>`:
-                                // тап кладе `coin` у стек, а який екран показати — вирішує
-                                // `.navigationDestination` нижче (≈ таблиця маршрутів у `<Stack>`).
-                                NavigationLink(value: coin) {
-                                    CoinCard(coin: coin)
-                                }
-                                // Без цього весь текст у посиланні стане синім (як у кнопки).
-                                // `.plain` ≈ `<Pressable>` без стилів — лише обробка тапу.
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        // ≈ contentContainerStyle={{ padding: 16 }}.
+                    // ≈ `countriesError ?? error ?? (coin === null ? 'Монет не знайдено' : 'Завантаження...')`.
+                    Text(store.error ?? error ?? (notFound ? "Монет не знайдено" : "Завантаження..."))
                         .padding(16)
-                    }
-                    // Сірий фон під білими картками (як фон екрана за замовчуванням у React Navigation).
-                    .background(Color(.systemGroupedBackground))
                 }
             }
-            // ≈ `title: 'Головна'` у `<Tabs.Screen>`; тут великий заголовок зліва — стиль iOS.
             .navigationTitle("Головна")
-            // ≈ `<Stack.Screen name="coin/[id]" />`: "коли в стек потрапляє `Coin` — показати CoinView".
-            // Маршрут визначається типом значення, а не рядком-URL.
-            .navigationDestination(for: Coin.self) { coin in
-                CoinView(coin: coin)
+        }
+        // ≈ `useEffect(() => {...}, [countries])`: `.task(id:)` запускається при появі екрана
+        // і щоразу, коли змінюється `store.countries` (напр. коли країни щойно завантажились).
+        .task(id: store.countries) {
+            // ≈ `const country = pickRandom(countries); if (!country) return;`.
+            // Хелпер `pickRandom` не потрібен: у Swift є вбудований `randomElement()`,
+            // який повертає `nil` для порожнього масиву (≈ `T | undefined`).
+            guard let country = store.countries.randomElement() else { return }
+            do {
+                // ≈ `.then((coins) => setCoin(pickRandom(coins) ?? null))`.
+                coin = try await fetchCoinsByCountry(country.id).randomElement()
+                notFound = coin == nil
+            } catch {
+                // ≈ `.catch((e) => setError(String(e)))`.
+                self.error = String(describing: error)
             }
         }
     }
@@ -89,9 +72,8 @@ struct HomeView: View {
 
 // Живий прев'ю в Xcode (Canvas) — аналогів у RN немає.
 // Прев'ю не проходить через NumismatApp, тому стор передаємо вручну
-// (≈ обгорнути компонент у провайдер у Storybook). Firebase тут не викликається —
-// стор порожній, тож прев'ю показує "Завантаження...".
+// (≈ обгорнути компонент у провайдер у Storybook). Стор порожній, тож прев'ю показує "Завантаження...".
 #Preview {
     HomeView()
-        .environment(CoinsStore())
+        .environment(CountriesStore())
 }
